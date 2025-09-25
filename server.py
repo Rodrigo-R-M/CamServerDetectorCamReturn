@@ -14,15 +14,35 @@ class CameraHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         pass
 
-    def do_OPTIONS(self):
-        self.send_response(200)
+    def add_cors_headers(self):
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.add_cors_headers()
         self.end_headers()
 
     def do_GET(self):
         route = urlparse(self.path).path
+
+        if route == "/":
+            # ✅ Página HTML con <img> para mejor compatibilidad
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html')
+            self.add_cors_headers()
+            self.end_headers()
+            html = """
+            <html>
+            <head><title>DetectorCam Stream</title></head>
+            <body style="background:#000; margin:0; display:flex; justify-content:center; align-items:center; height:100vh;">
+                <img src="/video/0" style="max-width:100%; max-height:100%; border:2px solid #0f0;" onload="this.style.opacity=1" onerror="this.style.display='none'">
+            </body>
+            </html>
+            """
+            self.wfile.write(html.encode())
+            return
 
         if route == "/activar-camara":
             estado.alternar_estado_pendiente_global = True
@@ -45,15 +65,15 @@ class CameraHandler(BaseHTTPRequestHandler):
 
         else:
             self.send_response(200)
+            self.add_cors_headers()
             self.send_header('Content-type', 'text/plain')
-            self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             self.wfile.write(b"Servidor de camara activo")
 
     def _send_json(self, data):
         self.send_response(200)
+        self.add_cors_headers()
         self.send_header('Content-type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
         self.end_headers()
         self.wfile.write(json.dumps(data).encode())
 
@@ -69,9 +89,9 @@ class CameraHandler(BaseHTTPRequestHandler):
             return
 
         self.send_response(200)
+        self.add_cors_headers()
         self.send_header("Content-type", "multipart/x-mixed-replace; boundary=frame")
         self.send_header("Cache-Control", "no-cache")
-        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
 
         cap = camaras_activas[cam_index]

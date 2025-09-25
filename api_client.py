@@ -20,8 +20,7 @@ if os.path.exists(COOKIE_FILE):
 
 def registrar_estado_camara(activa):
     if activa:
-        # ✅ Import diferido para evitar cualquier riesgo de circularidad
-        from tunnel import obtener_url_publica
+        from ngrok import obtener_url_publica  # ✅ Usa ngrok
         url = obtener_url_publica()
         payload = {
             "estado": True,

@@ -3,13 +3,13 @@ import tkinter as tk
 from tkinter import messagebox
 import threading
 from config import DIRECCION_IP, PORT_CAMARA
-from camera import detectar_camaras, abrir_camaras, cerrar_todas_camaras, camaras_disponibles
+from camera import detectar_camaras, abrir_camaras, cerrar_todas_camaras, obtener_camaras_disponibles
 from auth import verificar_login, cerrar_sesion_completa
 from api_client import registrar_estado_camara
 import estado
 
 
-def mostrar_ventana_principal(usuario_autenticado, camaras_disponibles, server_thread):
+def mostrar_ventana_principal(usuario_autenticado, server_thread):
     ventana = tk.Tk()
     ventana.title("Panel Principal - Servidor de Cámara")
     ventana.geometry("450x350")
@@ -17,12 +17,14 @@ def mostrar_ventana_principal(usuario_autenticado, camaras_disponibles, server_t
     tk.Label(ventana, text=f"👤 Usuario: {usuario_autenticado}").place(x=10, y=5)
     tk.Label(ventana, text=f"🌐 IP Local: {DIRECCION_IP}:{PORT_CAMARA}").place(x=10, y=25)
 
-    # Etiqueta para la URL pública (inicialmente en "Cargando...")
+    # Etiqueta para la URL pública
     url_label = tk.Label(ventana, text="🌍 URL Pública: Cargando...", fg="blue", wraplength=430)
     url_label.place(x=10, y=45)
 
-    tk.Label(ventana, text=f"📹 Cámaras: {len(camaras_disponibles)}").place(x=10, y=85)
-    camaras_str = ", ".join(map(str, camaras_disponibles)) if camaras_disponibles else "Ninguna"
+    # ✅ Usamos la función para obtener las cámaras actuales
+    camaras_actuales = obtener_camaras_disponibles()
+    tk.Label(ventana, text=f"📹 Cámaras: {len(camaras_actuales)}").place(x=10, y=85)
+    camaras_str = ", ".join(map(str, camaras_actuales)) if camaras_actuales else "Ninguna"
     tk.Label(ventana, text=f"📋 Índices: {camaras_str}").place(x=10, y=105)
 
     def cerrar_sesion():
@@ -44,9 +46,10 @@ def mostrar_ventana_principal(usuario_autenticado, camaras_disponibles, server_t
     def alternar_estado():
         estado.camara_encendida = not estado.camara_encendida
         if estado.camara_encendida:
-            if camaras_disponibles:
+            camaras_actuales = obtener_camaras_disponibles()
+            if camaras_actuales:
                 estado_label.set("🟢 Cámaras activadas")
-                abrir_camaras(camaras_disponibles)
+                abrir_camaras(camaras_actuales)
             else:
                 estado_label.set("⚠️ Sin cámaras")
                 estado.camara_encendida = False
@@ -65,25 +68,22 @@ def mostrar_ventana_principal(usuario_autenticado, camaras_disponibles, server_t
         ventana.after(1000, procesar_eventos)
 
     def redetectar_camaras():
-        global camaras_disponibles
-        camaras_disponibles = detectar_camaras()
-        camaras_str = ", ".join(map(str, camaras_disponibles)) if camaras_disponibles else "Ninguna"
-        messagebox.showinfo("Éxito", f"Cámaras: {len(camaras_disponibles)}\nÍndices: {camaras_str}")
+        detectar_camaras()  # Actualiza la variable global
+        camaras_actuales = obtener_camaras_disponibles()
+        camaras_str = ", ".join(map(str, camaras_actuales)) if camaras_actuales else "Ninguna"
+        messagebox.showinfo("Éxito", f"Cámaras: {len(camaras_actuales)}\nÍndices: {camaras_str}")
 
     tk.Button(ventana, text="🔄 Redetectar", command=redetectar_camaras).place(x=220, y=170)
 
-    # === FUNCIÓN CLAVE: Actualiza la URL pública en la GUI ===
+    # === Actualizar URL pública ===
     def actualizar_url_publica():
         from tunnel import cloudflare_url
         if cloudflare_url and cloudflare_url != "Cargando...":
             url_label.config(text=f"🌍 URL Pública: {cloudflare_url}", fg="blue")
         else:
-            # Si aún no está lista, intenta de nuevo en 1 segundo
             ventana.after(1000, actualizar_url_publica)
 
-    # Iniciar la verificación de la URL pública
     ventana.after(1000, actualizar_url_publica)
-
     procesar_eventos()
     ventana.mainloop()
 
@@ -106,12 +106,13 @@ def iniciar_login():
         pwd = entry_pass.get()
         usuario_ok = verificar_login(user, pwd)
         if usuario_ok:
-            camaras = detectar_camaras()
+            # ✅ Detectar cámaras al iniciar sesión
+            detectar_camaras()
             server_thread = threading.Thread(target=lambda: __import__('server').iniciar_servidor(), daemon=True)
             server_thread.start()
             registrar_estado_camara(True)
             ventana.destroy()
-            mostrar_ventana_principal(usuario_ok, camaras, server_thread)
+            mostrar_ventana_principal(usuario_ok, server_thread)
         else:
             messagebox.showerror("Error", "Credenciales inválidas")
 
