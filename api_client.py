@@ -20,7 +20,7 @@ if os.path.exists(COOKIE_FILE):
 
 def registrar_estado_camara(activa):
     if activa:
-        from ngrok import obtener_url_publica  # ✅ Usa ngrok
+        from ngrok import obtener_url_publica
         url = obtener_url_publica()
         payload = {
             "estado": True,

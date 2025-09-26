@@ -1,10 +1,11 @@
 # ngrok.py
 import subprocess
-import requests
 import time
 import os
 import platform
 import shutil
+import requests
+import re
 from config import PORT_CAMARA
 
 ngrok_process = None
@@ -63,7 +64,6 @@ def iniciar_ngrok(puerto_local=PORT_CAMARA):
     bin_name = "ngrok.exe" if platform.system().lower() == "windows" else "ngrok"
     bin_path = bin_name
 
-    # Buscar ngrok en PATH o en la carpeta actual
     if not os.path.exists(bin_path):
         if shutil.which("ngrok"):
             bin_path = "ngrok"
@@ -75,46 +75,46 @@ def iniciar_ngrok(puerto_local=PORT_CAMARA):
             bin_path = ruta
 
     try:
-        # Iniciar ngrok en segundo plano
-        cmd = [bin_path, "http", str(puerto_local), "--log=stdout"]
+        # Iniciar ngrok en segundo plano (sin capturar stdout)
+        cmd = [bin_path, "http", "--log=stdout", str(puerto_local)]
         ngrok_process = subprocess.Popen(
             cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            universal_newlines=True,
-            bufsize=1
+            stdout=subprocess.DEVNULL,  # No leer stdout (evita bloqueos)
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL
         )
 
-        print("⏳ Iniciando ngrok...")
-        time.sleep(3)  # Esperar a que ngrok se estabilice
+        print("⏳ Esperando a que ngrok inicie...")
+        time.sleep(2)  # Dar tiempo a que ngrok arranque
 
-        # Obtener la URL desde la API local de ngrok
-        try:
-            response = requests.get("http://localhost:4040/api/tunnels", timeout=5)
-            if response.status_code == 200:
-                data = response.json()
-                for tunnel in data.get("tunnels", []):
-                    if tunnel["proto"] == "https":
-                        ngrok_url = tunnel["public_url"]
-                        print(f"✅ Túnel público listo: {ngrok_url}")
-                        break
-        except Exception as e:
-            print(f"⚠️ No se pudo obtener la URL de ngrok: {e}")
+        # Intentar obtener la URL desde la API local (puerto 4040)
+        print("🔄 Consultando API local de ngrok (http://localhost:4040/api/tunnels)...")
+        for intento in range(15):  # Esperar hasta 15 segundos
+            try:
+                response = requests.get("http://localhost:4040/api/tunnels", timeout=1)
+                if response.status_code == 200:
+                    data = response.json()
+                    for tunnel in data.get("tunnels", []):
+                        if tunnel["proto"] == "https":
+                            ngrok_url = tunnel["public_url"]
+                            print(f"✅ Túnel público listo: {ngrok_url}")
+                            import atexit
+                            atexit.register(detener_ngrok)
+                            return ngrok_url
+            except Exception:
+                pass
+            time.sleep(1)
+            print(f"  ⏳ Intento {intento + 1}/15...")
 
-        if not ngrok_url:
-            print("⚠️ No se encontró URL HTTPS. Usando URL local.")
-            return f"http://localhost:{puerto_local}"
-
-        import atexit
-        atexit.register(detener_ngrok)
-        return ngrok_url
+        print("⚠️ No se pudo obtener la URL de ngrok desde la API local.")
+        return f"http://localhost:{puerto_local}"
 
     except Exception as e:
         print(f"❌ Error al iniciar ngrok: {e}")
         return f"http://localhost:{puerto_local}"
 
 def detener_ngrok():
-    global ngrok_process
+    global ngrok_process, ngrok_url
     if ngrok_process:
         print("🛑 Cerrando túnel de ngrok...")
         ngrok_process.terminate()
@@ -123,9 +123,12 @@ def detener_ngrok():
         except:
             ngrok_process.kill()
         ngrok_process = None
+        ngrok_url = None
 
 def obtener_url_publica():
     global ngrok_url
+    print("🔍 Obteniendo URL pública de ngrok...")
     if ngrok_url is None:
         ngrok_url = iniciar_ngrok()
+        print(f"🔗 URL obtenida: {ngrok_url}")
     return ngrok_url

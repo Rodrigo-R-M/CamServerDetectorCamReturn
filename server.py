@@ -5,7 +5,7 @@ import cv2
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse
 from config import DIRECCION_IP, PORT_CAMARA
-from camera import camaras_activas, camaras_disponibles, cerrar_todas_camaras
+from camera import camaras_activas, camaras_disponibles, cerrar_todas_camaras,obtener_camaras_disponibles
 import estado
 
 httpd = None
@@ -53,11 +53,13 @@ class CameraHandler(BaseHTTPRequestHandler):
             cerrar_todas_camaras()
             self._send_json({"status": "ok", "message": "Cámaras desactivadas"})
 
+
         elif route in ("/listar-camaras", "/info-camaras"):
+            camaras = obtener_camaras_disponibles()
             self._send_json({
-                "camaras": camaras_disponibles,
+                "camaras": camaras,
                 "camara_activa": estado.camara_encendida,
-                "total_camaras": len(camaras_disponibles)
+                "total_camaras": len(camaras)
             })
 
         elif route.startswith("/video/"):
@@ -118,8 +120,8 @@ class CameraHandler(BaseHTTPRequestHandler):
 def iniciar_servidor():
     global httpd
     try:
-        httpd = HTTPServer((DIRECCION_IP, PORT_CAMARA), CameraHandler)
-        print(f"📡 Servidor en http://{DIRECCION_IP}:{PORT_CAMARA}")
+        httpd = HTTPServer(("", PORT_CAMARA), CameraHandler)
+        print(f"📡 Servidor en http://localhost:{PORT_CAMARA}")
         httpd.serve_forever()
     except Exception as e:
         print("❌ Error al iniciar servidor:", e)

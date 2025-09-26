@@ -33,8 +33,9 @@ def mostrar_ventana_principal(usuario_autenticado, server_thread):
         cerrar_todas_camaras()
         cerrar_sesion_completa()
         detener_servidor()
-        from tunnel import detener_cloudflare_tunnel
-        detener_cloudflare_tunnel()
+        # ✅ Reemplazado: Cloudflare → ngrok
+        from ngrok import detener_ngrok
+        detener_ngrok()
         ventana.destroy()
         iniciar_login()
 
@@ -49,7 +50,7 @@ def mostrar_ventana_principal(usuario_autenticado, server_thread):
             camaras_actuales = obtener_camaras_disponibles()
             if camaras_actuales:
                 estado_label.set("🟢 Cámaras activadas")
-                abrir_camaras(camaras_actuales)
+                abrir_camaras([0])  # 👈 Fuerza a abrir la cámara 0
             else:
                 estado_label.set("⚠️ Sin cámaras")
                 estado.camara_encendida = False
@@ -68,18 +69,19 @@ def mostrar_ventana_principal(usuario_autenticado, server_thread):
         ventana.after(1000, procesar_eventos)
 
     def redetectar_camaras():
-        detectar_camaras()  # Actualiza la variable global
+        detectar_camaras()
         camaras_actuales = obtener_camaras_disponibles()
         camaras_str = ", ".join(map(str, camaras_actuales)) if camaras_actuales else "Ninguna"
         messagebox.showinfo("Éxito", f"Cámaras: {len(camaras_actuales)}\nÍndices: {camaras_str}")
 
     tk.Button(ventana, text="🔄 Redetectar", command=redetectar_camaras).place(x=220, y=170)
 
-    # === Actualizar URL pública ===
+    # === Actualizar URL pública desde ngrok ===
+    # gui.py (solo la función actualizar_url_publica modificada)
     def actualizar_url_publica():
-        from tunnel import cloudflare_url
-        if cloudflare_url and cloudflare_url != "Cargando...":
-            url_label.config(text=f"🌍 URL Pública: {cloudflare_url}", fg="blue")
+        from ngrok import ngrok_url
+        if ngrok_url and ngrok_url.startswith("http"):
+            url_label.config(text=f"🌍 URL Pública: {ngrok_url}", fg="blue")
         else:
             ventana.after(1000, actualizar_url_publica)
 
@@ -106,7 +108,6 @@ def iniciar_login():
         pwd = entry_pass.get()
         usuario_ok = verificar_login(user, pwd)
         if usuario_ok:
-            # ✅ Detectar cámaras al iniciar sesión
             detectar_camaras()
             server_thread = threading.Thread(target=lambda: __import__('server').iniciar_servidor(), daemon=True)
             server_thread.start()
