@@ -28,25 +28,24 @@ class CameraHandler(BaseHTTPRequestHandler):
         route = urlparse(self.path).path
 
         if route == "/":
-            # ✅ Página HTML con <img> para mejor compatibilidad
-            self.send_response(200)
-            self.send_header('Content-type', 'text/html')
-            self.add_cors_headers()
-            self.end_headers()
-            html = """
-            <html>
-            <head><title>DetectorCam Stream</title></head>
-            <body style="background:#000; margin:0; display:flex; justify-content:center; align-items:center; height:100vh;">
-                <img src="/video/0" style="max-width:100%; max-height:100%; border:2px solid #0f0;" onload="this.style.opacity=1" onerror="this.style.display='none'">
-            </body>
-            </html>
-            """
-            self.wfile.write(html.encode())
+            camaras = obtener_camaras_disponibles()
+            if camaras and estado.camara_encendida:
+                # Usar la primera cámara disponible
+                self._stream_video(f"/video/{camaras[0]}")
+            else:
+                # Devolver un stream de error o placeholder
+                self.send_response(200)
+                self.add_cors_headers()
+                self.send_header('Content-type', 'text/plain')
+                self.end_headers()
+                self.wfile.write(b"Servidor de camara activo (sin camaras)")
             return
 
         if route == "/activar-camara":
-            estado.alternar_estado_pendiente_global = True
-            self._send_json({"status": "ok", "message": "Activación solicitada"})
+            estado.camara_encendida = True
+            from camera import abrir_camaras
+            abrir_camaras([0])  # 👈 forzar cámara 0
+            self._send_json({"status": "ok", "message": "Cámara activada"})
 
         elif route == "/desactivar-camara":
             estado.camara_encendida = False
@@ -82,12 +81,13 @@ class CameraHandler(BaseHTTPRequestHandler):
     def _stream_video(self, route):
         try:
             cam_index = int(route.split("/")[-1])
-        except:
+        except ValueError:
             self.send_error(400, "Índice inválido")
             return
 
         if not estado.camara_encendida or cam_index not in camaras_activas:
-            self.send_error(503 if not estado.camara_encendida else 404, "No disponible")
+            # Si la cámara no está activa o no existe, devolver 404
+            self.send_error(503 if not estado.camara_encendida else 404, "Cámara no disponible")
             return
 
         self.send_response(200)

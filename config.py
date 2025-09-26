@@ -3,7 +3,7 @@ import socket
 import os
 
 # URLs y puertos
-API_BASE_URL = "https://apidetectorcamreturn.onrender.com"  # ✅ Sin espacios al final
+API_BASE_URL="https://apidetectorcamreturn.onrender.com" # ✅ Sin espacios al final
 PORT_CAMARA = 8081
 
 # Archivos
